@@ -1,0 +1,33 @@
+app:
+  name: "Stake-Mining-Backend"
+  port: 8080
+  mode: "prod"
+
+mysql:
+  dsn: "root:123456@tcp(127.0.0.1:3306)/stake_mining?charset=utf8mb4&parseTime=True&loc=Local"
+  max_idle: 10
+  max_open: 100
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+
+jwt:
+  secret: "stake-mining-jwt-secret"
+  expire: 86400
+
+chain:
+  rpc: "https://sepolia.infura.io/v3/你的INFURA_KEY"
+  stake_token: "质押代币合约地址"
+  reward_token: "收益代币合约地址"
+  mining_proxy: "挖矿代理合约地址"
+  start_block: 0
+
+indexer:
+  batch_size: 50      
+  batch_wait_seconds: 10  
+
+rate_limit:
+  max_requests: 60
+  window_seconds: 60
