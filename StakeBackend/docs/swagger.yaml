@@ -1,0 +1,456 @@
+basePath: /
+definitions:
+  api.AdminBlacklistRequest:
+    properties:
+      address:
+        type: string
+    required:
+    - address
+    type: object
+  api.AdminRewardRateRequest:
+    properties:
+      rate:
+        type: string
+    required:
+    - rate
+    type: object
+  api.AdminStakeLimitsRequest:
+    properties:
+      max_amount:
+        type: string
+      min_amount:
+        type: string
+    required:
+    - max_amount
+    - min_amount
+    type: object
+  api.TxDataResponse:
+    properties:
+      data:
+        type: string
+      gas_limit:
+        type: integer
+      to:
+        type: string
+      value:
+        type: string
+    type: object
+  api.TxStatusResponse:
+    properties:
+      block_number:
+        type: integer
+      confirmations:
+        type: integer
+      status:
+        type: string
+      tx_hash:
+        type: string
+    type: object
+  model.UserStake:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      last_reward_updated_at:
+        description: 上次收益更新时间戳，用于离线计算待领取收益
+        type: integer
+      reward_debt:
+        type: string
+      stake_amount:
+        type: string
+      total_rewards_claimed:
+        description: 累计领取收益
+        type: string
+      total_staked:
+        description: 累计质押金额
+        type: string
+      update_time:
+        type: integer
+      updated_at:
+        type: string
+      user_address:
+        type: string
+    type: object
+  request.StakeRequest:
+    properties:
+      amount:
+        type: string
+    required:
+    - amount
+    type: object
+  response.Response:
+    properties:
+      code:
+        type: integer
+      data: {}
+      msg:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: 质押挖矿系统API文档，包含用户接口和管理员接口
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Stake Mining API
+  version: "1.0"
+paths:
+  /api/admin/blacklist/add:
+    post:
+      consumes:
+      - application/json
+      description: 将指定地址加入黑名单，禁止其质押操作
+      parameters:
+      - description: 黑名单地址
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AdminBlacklistRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 添加黑名单
+      tags:
+      - 管理员
+  /api/admin/blacklist/remove:
+    post:
+      consumes:
+      - application/json
+      description: 将指定地址从黑名单中移除
+      parameters:
+      - description: 黑名单地址
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AdminBlacklistRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 移除黑名单
+      tags:
+      - 管理员
+  /api/admin/limits/update:
+    post:
+      consumes:
+      - application/json
+      description: 调整最小和最大质押金额限制
+      parameters:
+      - description: 质押限额
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AdminStakeLimitsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新质押限额
+      tags:
+      - 管理员
+  /api/admin/login:
+    get:
+      description: 管理员登录并生成JWT Token（演示用，生产环境应使用签名验证）
+      parameters:
+      - description: 管理员ID
+        in: query
+        name: admin_id
+        required: true
+        type: string
+      - description: 角色 (admin/super_admin)
+        in: query
+        name: role
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+      summary: 管理员登录
+      tags:
+      - 管理员
+  /api/admin/pause:
+    post:
+      description: 紧急暂停合约，停止所有质押操作
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 暂停合约
+      tags:
+      - 管理员
+  /api/admin/rate/update:
+    post:
+      consumes:
+      - application/json
+      description: 调整每秒收益速率
+      parameters:
+      - description: 收益费率
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AdminRewardRateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新收益费率
+      tags:
+      - 管理员
+  /api/admin/status:
+    get:
+      description: 获取合约当前状态（是否暂停、质押限额等）
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 查询合约状态
+      tags:
+      - 管理员
+  /api/admin/unpause:
+    post:
+      description: 恢复已暂停的合约
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 恢复合约
+      tags:
+      - 管理员
+  /api/login:
+    get:
+      description: 用户登录并生成JWT Token
+      parameters:
+      - description: 用户钱包地址
+        in: query
+        name: address
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+      summary: 用户登录
+      tags:
+      - 认证
+  /api/stake/claim:
+    post:
+      description: 构造领取收益交易数据，供前端钱包签名
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TxDataResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 领取收益
+      tags:
+      - 质押
+  /api/stake/do:
+    post:
+      consumes:
+      - application/json
+      description: 构造质押交易数据，供前端钱包签名
+      parameters:
+      - description: 质押请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.StakeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TxDataResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 质押代币
+      tags:
+      - 质押
+  /api/stake/info:
+    get:
+      description: 获取当前用户的质押信息
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.UserStake'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 查询质押信息
+      tags:
+      - 质押
+  /api/stake/reward:
+    get:
+      description: 获取当前用户的待领取挖矿收益
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 查询待领取收益
+      tags:
+      - 质押
+  /api/stake/unstake:
+    post:
+      consumes:
+      - application/json
+      description: 构造解质押交易数据，供前端钱包签名
+      parameters:
+      - description: 解质押请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.StakeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TxDataResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 解质押
+      tags:
+      - 质押
+  /api/tx/status:
+    get:
+      description: 查询已提交交易的状态
+      parameters:
+      - description: 交易哈希
+        in: query
+        name: tx_hash
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TxStatusResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 查询交易状态
+      tags:
+      - 交易追踪
+  /api/tx/wait:
+    get:
+      description: 等待交易确认（同步接口，最多等待30秒）
+      parameters:
+      - description: 交易哈希
+        in: query
+        name: tx_hash
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TxStatusResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 等待交易确认
+      tags:
+      - 交易追踪
+schemes:
+- http
+swagger: "2.0"

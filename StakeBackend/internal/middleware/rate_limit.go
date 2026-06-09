@@ -18,6 +18,7 @@ func RateLimitMiddleware() gin.HandlerFunc {
 
 		count, err := redis.RDB.Incr(redis.Ctx, key).Result()
 		if err != nil {
+			// Redis错误时降级处理：记录日志但允许请求通过
 			c.Next()
 			return
 		}

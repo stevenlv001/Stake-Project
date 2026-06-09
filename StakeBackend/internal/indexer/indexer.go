@@ -18,45 +18,57 @@ import (
 	"gorm.io/gorm"
 )
 
-// ==================== 批量队列全局变量（线程安全）====================
 var (
-	eventQueue    []EventBatchItem           // 事件批量队列
-	blockMap      map[uint64]model.BlockSync // 区块同步记录
+	eventQueue    []EventBatchItem
+	adminQueue    []AdminBatchItem
+	blockMap      map[uint64]model.BlockSync
 	queueMutex    sync.Mutex
-	lastFlushTime time.Time     // 上次批量入库时间
-	batchSize     int           // 批量大小
-	batchWaitTime time.Duration // 批量等待时间
+	lastFlushTime time.Time
+	batchSize     int
+	batchWaitTime time.Duration
 )
 
-// EventBatchItem 批量队列存储结构
 type EventBatchItem struct {
-	ChainEvent model.ChainEvent
-	UserAddr   string
-	Amount     *big.Int
-	IsStake    bool
-	IsReward   bool
-	Reward     *big.Int
+	ChainEvent        model.ChainEvent
+	UserAddr          string
+	Amount            *big.Int
+	IsStake           bool
+	IsReward          bool
+	Reward            *big.Int
+	Account           string
+	MinLimit          *big.Int
+	MaxLimit          *big.Int
+	IsBlacklistAdd    bool
+	IsBlacklistRemove bool
+	IsStakeLimits     bool
 }
 
-// ==================== 启动索引器（批量版）====================
+type AdminBatchItem struct {
+	AdminOp           model.AdminOperation
+	Account           string
+	MinLimit          *big.Int
+	MaxLimit          *big.Int
+	IsBlacklistAdd    bool
+	IsBlacklistRemove bool
+	IsStakeLimits     bool
+}
+
 func StartIndexer() {
 	logger.Logger.Info("索引器启动")
 
-	// 初始化参数
 	batchSize = config.GlobalConfig.Indexer.BatchSize
 	batchWaitTime = time.Duration(config.GlobalConfig.Indexer.BatchWaitSeconds) * time.Second
 	lastFlushTime = time.Now()
 	eventQueue = make([]EventBatchItem, 0, batchSize)
+	adminQueue = make([]AdminBatchItem, 0, batchSize)
 	blockMap = make(map[uint64]model.BlockSync)
 
 	currentBlock := config.GlobalConfig.Chain.StartBlock
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
-	// 独立协程：定时检查批量入库条件（超时触发）
 	go batchFlushTicker()
 
-	// 主循环：同步区块 + 解析事件入队列
 	for range ticker.C {
 		latestBlock, err := contract.Client.BlockNumber(contract.Ctx)
 		if err != nil {
@@ -70,7 +82,6 @@ func StartIndexer() {
 				break
 			}
 
-			// 解析事件 → 加入批量队列
 			if err := parseEventsToQueue(currentBlock); err != nil {
 				logger.Logger.Error("事件解析入队失败", zap.Uint64("block", currentBlock), zap.Error(err))
 				break
@@ -82,15 +93,13 @@ func StartIndexer() {
 	}
 }
 
-// ==================== 定时检查：超时自动批量入库 ====================
 func batchFlushTicker() {
 	checkTicker := time.NewTicker(1 * time.Second)
 	defer checkTicker.Stop()
 
 	for range checkTicker.C {
 		queueMutex.Lock()
-		// 触发条件1：超时无写入
-		if time.Since(lastFlushTime) > batchWaitTime && len(eventQueue) > 0 {
+		if time.Since(lastFlushTime) > batchWaitTime && (len(eventQueue) > 0 || len(adminQueue) > 0) {
 			logger.Logger.Info("批量入库触发：超时自动提交")
 			flushBatch()
 		}
@@ -98,21 +107,18 @@ func batchFlushTicker() {
 	}
 }
 
-// ==================== 解析事件 → 加入批量队列 ====================
 func parseEventsToQueue(blockNumber uint64) error {
 	block, err := contract.Client.BlockByNumber(contract.Ctx, new(big.Int).SetUint64(blockNumber))
 	if err != nil {
 		return err
 	}
 
-	// 记录区块（用于链重组校验）
 	blockMap[blockNumber] = model.BlockSync{
 		BlockNumber: blockNumber,
 		BlockHash:   block.Hash().Hex(),
 		ParentHash:  block.ParentHash().Hex(),
 	}
 
-	// 获取合约事件日志
 	contractAddr := common.HexToAddress(config.GlobalConfig.Chain.MiningProxy)
 	query := ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(blockNumber),
@@ -127,24 +133,60 @@ func parseEventsToQueue(blockNumber uint64) error {
 	queueMutex.Lock()
 	defer queueMutex.Unlock()
 
-	// 事件解析入队
 	for _, vLog := range logs {
 		item := parseEventToBatchItem(vLog)
 		if item != nil {
-			eventQueue = append(eventQueue, *item)
+			if item.IsAdminEvent() {
+				adminQueue = append(adminQueue, item.ToAdminBatchItem(vLog))
+			} else {
+				eventQueue = append(eventQueue, *item)
+			}
 		}
 	}
 
-	// 触发条件2：达到批量数量上限
-	if len(eventQueue) >= batchSize {
-		logger.Logger.Info("批量入库触发：数量达到阈值", zap.Int("count", len(eventQueue)))
+	if len(eventQueue) >= batchSize || len(adminQueue) >= batchSize {
+		logger.Logger.Info("批量入库触发：数量达到阈值", zap.Int("user_events", len(eventQueue)), zap.Int("admin_events", len(adminQueue)))
 		flushBatch()
 	}
 
 	return nil
 }
 
-// ==================== 解析单条事件为批量结构体 ====================
+func (item *EventBatchItem) IsAdminEvent() bool {
+	return item.IsBlacklistAdd || item.IsBlacklistRemove || item.IsStakeLimits
+}
+
+func (item *EventBatchItem) ToAdminBatchItem(vLog types.Log) AdminBatchItem {
+	op := model.AdminOperation{
+		BlockNumber: vLog.BlockNumber,
+		BlockHash:   vLog.BlockHash.Hex(),
+		TxHash:      vLog.TxHash.Hex(),
+		EventTime:   vLog.BlockNumber,
+	}
+
+	if item.IsBlacklistAdd {
+		op.EventType = "BlacklistAdded"
+		op.TargetUser = item.Account
+	} else if item.IsBlacklistRemove {
+		op.EventType = "BlacklistRemoved"
+		op.TargetUser = item.Account
+	} else if item.IsStakeLimits {
+		op.EventType = "StakeLimitsUpdated"
+		op.MinLimit = item.MinLimit.String()
+		op.MaxLimit = item.MaxLimit.String()
+	}
+
+	return AdminBatchItem{
+		AdminOp:           op,
+		Account:           item.Account,
+		MinLimit:          item.MinLimit,
+		MaxLimit:          item.MaxLimit,
+		IsBlacklistAdd:    item.IsBlacklistAdd,
+		IsBlacklistRemove: item.IsBlacklistRemove,
+		IsStakeLimits:     item.IsStakeLimits,
+	}
+}
+
 func parseEventToBatchItem(vLog types.Log) *EventBatchItem {
 	switch vLog.Topics[0].Hex() {
 	case abi.AbiStakedEventID.Hex():
@@ -197,49 +239,101 @@ func parseEventToBatchItem(vLog types.Log) *EventBatchItem {
 			IsReward: true,
 			Reward:   event.Reward,
 		}
+
+	case abi.AbiBlacklistAddedEventID.Hex():
+		event, _ := contract.MiningContract.ParseBlacklistAdded(vLog)
+		return &EventBatchItem{
+			ChainEvent: model.ChainEvent{
+				BlockNumber: vLog.BlockNumber,
+				BlockHash:   vLog.BlockHash.Hex(),
+				TxHash:      vLog.TxHash.Hex(),
+				EventType:   "BlacklistAdded",
+				User:        event.Account.Hex(),
+				EventTime:   vLog.BlockNumber,
+			},
+			Account:        event.Account.Hex(),
+			IsBlacklistAdd: true,
+		}
+
+	case abi.AbiBlacklistRemovedEventID.Hex():
+		event, _ := contract.MiningContract.ParseBlacklistRemoved(vLog)
+		return &EventBatchItem{
+			ChainEvent: model.ChainEvent{
+				BlockNumber: vLog.BlockNumber,
+				BlockHash:   vLog.BlockHash.Hex(),
+				TxHash:      vLog.TxHash.Hex(),
+				EventType:   "BlacklistRemoved",
+				User:        event.Account.Hex(),
+				EventTime:   vLog.BlockNumber,
+			},
+			Account:           event.Account.Hex(),
+			IsBlacklistRemove: true,
+		}
+
+	case abi.AbiStakeLimitsUpdatedEventID.Hex():
+		event, _ := contract.MiningContract.ParseStakeLimitsUpdated(vLog)
+		return &EventBatchItem{
+			ChainEvent: model.ChainEvent{
+				BlockNumber: vLog.BlockNumber,
+				BlockHash:   vLog.BlockHash.Hex(),
+				TxHash:      vLog.TxHash.Hex(),
+				EventType:   "StakeLimitsUpdated",
+				Amount:      event.Min.String(),
+				ExtraData:   event.Max.String(),
+				EventTime:   vLog.BlockNumber,
+			},
+			MinLimit:      event.Min,
+			MaxLimit:      event.Max,
+			IsStakeLimits: true,
+		}
 	}
 	return nil
 }
 
-// ==================== 批量入库（事务原子提交）====================
 func flushBatch() {
-	if len(eventQueue) == 0 {
+	if len(eventQueue) == 0 && len(adminQueue) == 0 {
 		return
 	}
 
 	var events []model.ChainEvent
+	var adminOps []model.AdminOperation
 	var blockSyncs []model.BlockSync
 
-	// 事务批量写入
 	err := db.DB.Transaction(func(tx *gorm.DB) error {
 		events = make([]model.ChainEvent, 0, len(eventQueue))
+		adminOps = make([]model.AdminOperation, 0, len(adminQueue))
 		blockSyncs = make([]model.BlockSync, 0, len(blockMap))
 
-		// 1. 组装批量事件
 		for _, item := range eventQueue {
 			events = append(events, item.ChainEvent)
 		}
 
-		// 2. 组装批量区块记录
+		for _, item := range adminQueue {
+			adminOps = append(adminOps, item.AdminOp)
+		}
+
 		for _, b := range blockMap {
 			blockSyncs = append(blockSyncs, b)
 		}
 
-		// 3. 批量插入事件
 		if len(events) > 0 {
 			if err := tx.CreateInBatches(events, 50).Error; err != nil {
 				return err
 			}
 		}
 
-		// 4. 批量插入区块同步记录
+		if len(adminOps) > 0 {
+			if err := tx.CreateInBatches(adminOps, 50).Error; err != nil {
+				return err
+			}
+		}
+
 		if len(blockSyncs) > 0 {
 			if err := tx.CreateInBatches(blockSyncs, 50).Error; err != nil {
 				return err
 			}
 		}
 
-		// 5. 批量更新用户质押数据
 		batchUpdateUserStake(tx, eventQueue)
 
 		return nil
@@ -250,19 +344,17 @@ func flushBatch() {
 		return
 	}
 
-	// 清空队列 + 重置时间
 	eventQueue = make([]EventBatchItem, 0, batchSize)
+	adminQueue = make([]AdminBatchItem, 0, batchSize)
 	clear(blockMap)
 	lastFlushTime = time.Now()
 
-	logger.Logger.Info("入库成功", zap.Int("event_count", len(events)))
+	logger.Logger.Info("入库成功", zap.Int("user_events", len(events)), zap.Int("admin_events", len(adminOps)))
 }
 
-// ==================== 更新用户质押数据 ====================
 func batchUpdateUserStake(tx *gorm.DB, queue []EventBatchItem) {
 	userMap := make(map[string]*model.UserStake)
 
-	// 归集用户数据
 	for _, item := range queue {
 		if item.IsReward {
 			continue
@@ -277,7 +369,6 @@ func batchUpdateUserStake(tx *gorm.DB, queue []EventBatchItem) {
 		amount := item.Amount
 
 		if stake.ID == 0 {
-			// 新用户
 			if item.IsStake {
 				stake.UserAddress = item.UserAddr
 				stake.StakeAmount = amount.String()
@@ -285,7 +376,6 @@ func batchUpdateUserStake(tx *gorm.DB, queue []EventBatchItem) {
 				tx.Create(stake)
 			}
 		} else {
-			// 更新用户
 			current := new(big.Int)
 			current.SetString(stake.StakeAmount, 10)
 			if item.IsStake {
@@ -300,7 +390,6 @@ func batchUpdateUserStake(tx *gorm.DB, queue []EventBatchItem) {
 	}
 }
 
-// ==================== 链重组处理====================
 func handleReorg(blockNumber uint64) error {
 	var syncBlock model.BlockSync
 	if err := db.DB.Where("block_number = ?", blockNumber).First(&syncBlock).Error; err != nil {
@@ -315,20 +404,20 @@ func handleReorg(blockNumber uint64) error {
 	if syncBlock.BlockHash != chainBlock.Hash().Hex() {
 		logger.Logger.Warn("检测到链重组，回滚数据", zap.Uint64("block", blockNumber))
 
-		// 清空队列 + 回滚数据库
 		queueMutex.Lock()
 		eventQueue = make([]EventBatchItem, 0, batchSize)
+		adminQueue = make([]AdminBatchItem, 0, batchSize)
 		clear(blockMap)
 		queueMutex.Unlock()
 
 		db.DB.Where("block_number >= ?", blockNumber).Delete(&model.ChainEvent{})
+		db.DB.Where("block_number >= ?", blockNumber).Delete(&model.AdminOperation{})
 		db.DB.Where("block_number >= ?", blockNumber).Delete(&model.BlockSync{})
 		config.GlobalConfig.Chain.StartBlock = blockNumber
 	}
 	return nil
 }
 
-// ==================== 优雅关机：强制刷新队列 ====================
 func FlushOnShutdown() {
 	queueMutex.Lock()
 	defer queueMutex.Unlock()

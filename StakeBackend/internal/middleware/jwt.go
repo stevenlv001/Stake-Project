@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"StakeBackend/internal/config"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -52,6 +54,10 @@ func JWTMiddleware() gin.HandlerFunc {
 // ParseToken 解析Token
 func ParseToken(token string) (*Claims, error) {
 	tokenClaims, err := jwt.ParseWithClaims(token, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		// 验证签名算法类型，防止算法混淆攻击
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return []byte(config.GlobalConfig.JWT.Secret), nil
 	})
 	if err != nil {
@@ -60,5 +66,5 @@ func ParseToken(token string) (*Claims, error) {
 	if claims, ok := tokenClaims.Claims.(*Claims); ok && tokenClaims.Valid {
 		return claims, nil
 	}
-	return nil, err
+	return nil, errors.New("invalid token claims")
 }

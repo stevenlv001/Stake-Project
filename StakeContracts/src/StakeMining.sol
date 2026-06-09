@@ -1,5 +1,5 @@
 // SPDX-Lincense-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -8,12 +8,14 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /**
  * @title 可升级质押挖矿合约
  */
 
 contract StakeMining is Initializable, OwnableUpgradeable, UUPSUpgradeable, PausableUpgradeable, ReentrancyGuard {
+    using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     // ==== 状态变量 ====
@@ -41,6 +43,7 @@ contract StakeMining is Initializable, OwnableUpgradeable, UUPSUpgradeable, Paus
     event BlacklistAdded(address indexed account);
     event BlacklistRemoved(address indexed account);
     event StakeLimitsUpdated(uint256 min, uint256 max);
+    event RewardRateUpdated(uint256 oldRate, uint256 newRate);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -136,6 +139,7 @@ contract StakeMining is Initializable, OwnableUpgradeable, UUPSUpgradeable, Paus
         StakeInfo storage stakeInfo = userStakes[msg.sender];
         uint256 reward = stakeInfo.rewardDebt;
         require(reward > 0, "no rewards to claim");
+        require(rewardToken.balanceOf(address(this)) >= reward, "insufficient reward balance");
 
         stakeInfo.rewardDebt = 0;
         rewardToken.safeTransfer(msg.sender, reward);
@@ -149,18 +153,21 @@ contract StakeMining is Initializable, OwnableUpgradeable, UUPSUpgradeable, Paus
         if (stakeInfo.amount == 0) return;
 
         uint256 timeDiff = block.timestamp - stakeInfo.lastUpdate;
-        uint256 reward = stakeInfo.amount * rewardRate * timeDiff;
-        stakeInfo.rewardDebt += reward;
+        uint256 reward = stakeInfo.amount.mul(rewardRate).mul(timeDiff).div(1e18);
+        stakeInfo.rewardDebt = stakeInfo.rewardDebt.add(reward);
         stakeInfo.lastUpdate = block.timestamp;
     }
 
     function getPendingReward(address _user) external view returns (uint256) {
         StakeInfo storage stakeInfo = userStakes[_user];
         uint256 timeDiff = block.timestamp - stakeInfo.lastUpdate;
-        return stakeInfo.rewardDebt + (stakeInfo.amount * rewardRate * timeDiff);
+        uint256 pending = stakeInfo.amount.mul(rewardRate).mul(timeDiff).div(1e18);
+        return stakeInfo.rewardDebt.add(pending);
     }
 
     function setRewardRate(uint256 _rate) external onlyOwner {
+        uint256 oldRate = rewardRate;
         rewardRate = _rate;
+        emit RewardRateUpdated(oldRate, _rate);
     }
 }

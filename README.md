@@ -1,99 +1,470 @@
-# Stake-Project - 去中心化质押挖矿系统
+# Stake Mining Project
 
-一个完整的去中心化质押挖矿解决方案，包含 Solidity 智能合约和 Go 后端服务。
+一个基于区块链的质押挖矿系统，包含智能合约和 Go 后端服务。
 
-## 项目概述
+## 📋 项目概览
 
-本项目实现了一个基于区块链的质押挖矿系统，用户可以质押 ERC20 代币并获得奖励代币作为收益。系统采用可升级合约架构，支持批量事件索引、防穿透缓存、链重组处理等企业级特性。
+本项目实现了一个完整的去中心化质押挖矿系统，支持用户质押代币获取收益，并提供 RESTful API 接口供前端调用。
 
-### 核心功能
+### ✨ 功能特性
 
-- **质押挖矿**：用户质押代币获得奖励
-- **收益领取**：随时领取累积的挖矿奖励
-- **黑名单管理**：管理员可限制特定地址参与
-- **合约升级**：支持 UUPS 模式的可升级合约
-- **事件索引**：高效的链上事件同步与存储
-- **缓存优化**：Redis 多级缓存，防穿透防击穿
-- **API 限流**：防止恶意请求
+**智能合约层**
+- ✅ 可升级质押挖矿合约（UUPS 模式）
+- ✅ 质押/解质押/收益领取
+- ✅ 黑名单机制
+- ✅ 紧急暂停功能
+- ✅ 质押限额控制
+- ✅ 实时收益计算
+
+**后端服务层**
+- ✅ RESTful API 接口
+- ✅ Swagger API 文档
+- ✅ JWT 身份认证（用户 + 管理员）
+- ✅ Redis 缓存优化
+- ✅ MySQL 数据持久化
+- ✅ 交易状态追踪
+- ✅ 事件批量索引
+- ✅ 请求限流保护
+- ✅ 管理员后台 API
 
 ---
 
-## 项目结构
+## 🛠️ 技术栈
+
+### 智能合约
+| 技术 | 版本 | 说明 |
+|------|------|------|
+| Solidity | ^0.8.20 | 合约开发语言 |
+| OpenZeppelin | ^5.0 | 安全合约库 |
+| Foundry | ^0.2 | 智能合约测试框架 |
+
+### 后端服务
+| 技术 | 版本 | 说明 |
+|------|------|------|
+| Go | 1.21+ | 后端开发语言 |
+| Gin | ^1.9 | Web 框架 |
+| GORM | ^1.25 | ORM 框架 |
+| MySQL | 8.0+ | 关系型数据库 |
+| Redis | 7.0+ | 缓存服务 |
+| go-ethereum | ^1.12 | Ethereum 客户端库 |
+| Zap | ^1.27 | 日志框架 |
+
+---
+
+## 🏗️ 项目结构
 
 ```
 Stake-Project/
-├── StakeBackend/                 # Go 后端服务
-│   ├── cmd/
-│   │   └── main.go              # 服务入口
-│   ├── internal/
-│   │   ├── abi/                 # 合约绑定代码（abigen 生成）
-│   │   ├── api/                 # API 控制器
-│   │   ├── config/              # 配置管理
-│   │   ├── contract/            # 合约交互层
-│   │   ├── db/                  # 数据库操作
-│   │   ├── indexer/             # 事件索引器
-│   │   ├── middleware/          # 中间件（JWT、限流）
-│   │   ├── model/               # 数据模型
-│   │   ├── pkg/logger/          # 日志封装
-│   │   ├── redis/               # Redis 缓存
-│   │   └── utils/               # 工具函数
-│   ├── configs/
-│   │   └── config.yaml          # 配置文件
-│   ├── go.mod                   # Go 模块依赖
-│   └── go.sum
-│
-├── StakeContracts/              # Solidity 智能合约
-│   ├── src/
-│   │   └── StakeMining.sol      # 质押挖矿合约
-│   ├── test/
-│   │   └── StakeMining.t.sol    # 合约测试
-│   ├── foundry.toml             # Foundry 配置
-│   └── remappings.txt           # 依赖映射
-│
-└── README.md
+├── StakeContracts/           # 智能合约模块
+│   ├── src/                  # 合约源代码
+│   │   └── StakeMining.sol   # 质押挖矿合约
+│   ├── test/                 # 合约测试
+│   │   └── StakeMining.t.sol # Foundry 测试文件
+│   ├── foundry.toml          # Foundry 配置
+│   └── README.md             # 合约模块说明
+├── StakeBackend/             # Go 后端服务
+│   ├── cmd/                  # 入口文件
+│   │   └── main.go           # 主函数
+│   ├── configs/              # 配置文件
+│   │   └── config.yaml       # 应用配置
+│   ├── internal/             # 内部模块
+│   │   ├── api/              # API 控制器
+│   │   ├── abi/              # ABI 定义
+│   │   ├── config/           # 配置管理
+│   │   ├── contract/         # 合约交互
+│   │   ├── db/               # 数据库连接
+│   │   ├── indexer/          # 事件索引器
+│   │   ├── middleware/       # 中间件
+│   │   ├── model/            # 数据模型
+│   │   ├── pkg/              # 工具包
+│   │   │   ├── logger/       # 日志组件
+│   │   │   ├── request/      # 请求处理
+│   │   │   ├── response/     # 响应封装
+│   │   │   └── txtracker/    # 交易追踪
+│   │   ├── redis/            # Redis 客户端
+│   │   └── utils/            # 工具函数
+│   ├── go.mod                # Go 依赖
+│   └── go.sum                # 依赖校验
+└── README.md                 # 项目说明（本文件）
 ```
 
 ---
 
-## 快速开始
+## 🚀 快速开始
 
-### 环境要求
+### 前置条件
 
-- **Go**: 1.24.0+
-- **Node.js**: 18+ (可选，用于合约开发)
-- **Foundry**: 最新稳定版
-- **MySQL**: 8.0+
-- **Redis**: 6.0+
+- Go 1.21+
+- Node.js 18+（用于 Foundry）
+- MySQL 8.0+
+- Redis 7.0+
 
-### 1. 安装依赖
-
-#### 后端依赖
+### 1. 克隆项目
 
 ```bash
-cd StakeBackend
-go mod tidy
+git clone https://github.com/your-username/Stake-Project.git
+cd Stake-Project
 ```
 
-#### 合约依赖
+### 2. 配置智能合约
 
 ```bash
 cd StakeContracts
-forge install OpenZeppelin/openzeppelin-contracts@v5.2.0
-forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v5.2.0
+# 安装依赖
+forge install
+# 编译合约
+forge build
+# 运行测试
+forge test -v
 ```
 
-### 2. 配置服务
+### 3. 配置后端服务
 
-创建配置文件 `StakeBackend/configs/config.yaml`：
+```bash
+cd ../StakeBackend
+
+# 安装依赖
+go mod tidy
+
+# 修改配置文件
+cp configs/config.yaml configs/config.yaml.local
+# 编辑 config.yaml.local，配置数据库、Redis、链RPC等
+```
+
+### 4. 启动服务
+
+```bash
+go run cmd/main.go
+```
+
+服务将在 `http://localhost:8080` 启动。
+
+---
+
+## 📡 API 接口文档
+
+### 🌐 Swagger 在线文档
+
+启动服务后访问：`http://localhost:8080/swagger/index.html`
+
+- ✅ 完整的 API 接口文档
+- ✅ 在线测试 API 接口
+- ✅ 自动生成请求/响应示例
+
+详细使用说明请查看 [API_GUIDE.md](./StakeBackend/API_GUIDE.md)
+
+---
+
+### 认证接口
+
+#### 登录获取 Token
+
+```
+GET /api/login?address=<钱包地址>
+```
+
+**请求示例：**
+```bash
+curl "http://localhost:8080/api/login?address=0x1234567890abcdef1234567890abcdef12345678"
+```
+
+**响应示例：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+---
+
+### 质押接口
+
+#### 查询质押信息
+
+```
+GET /api/stake/info
+Authorization: Bearer <token>
+```
+
+**响应示例：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "user_address": "0x1234...",
+    "stake_amount": "1000000000000000000",
+    "reward_debt": "50000000000000000",
+    "created_at": "2024-01-01T12:00:00Z"
+  }
+}
+```
+
+#### 查询待领取收益
+
+```
+GET /api/stake/reward
+Authorization: Bearer <token>
+```
+
+**响应示例：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "pending_reward": "1234567890123456789"
+  }
+}
+```
+
+#### 质押代币（获取交易数据）
+
+```
+POST /api/stake/do
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "amount": "1000000000000000000"
+}
+```
+
+**响应示例：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "to": "0x合约地址",
+    "data": "0xa9059cbb...",
+    "value": "0",
+    "gas_limit": 300000
+  }
+}
+```
+
+#### 解质押
+
+```
+POST /api/stake/unstake
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "amount": "500000000000000000"
+}
+```
+
+#### 领取收益
+
+```
+POST /api/stake/claim
+Authorization: Bearer <token>
+```
+
+---
+
+### 交易追踪接口
+
+#### 查询交易状态
+
+```
+GET /api/tx/status?tx_hash=<交易哈希>
+Authorization: Bearer <token>
+```
+
+**响应示例：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "tx_hash": "0xabc123...",
+    "status": "confirmed",
+    "confirmations": 12,
+    "block_number": 18500000
+  }
+}
+```
+
+#### 等待交易确认
+
+```
+GET /api/tx/wait?tx_hash=<交易哈希>
+Authorization: Bearer <token>
+```
+
+---
+
+### 管理员接口
+
+> 所有管理员接口需要使用管理员 Token 进行认证
+
+#### 管理员登录
+
+```
+GET /api/admin/login?admin_id=<管理员ID>&role=<角色>
+```
+
+**角色类型：**
+- `admin` - 普通管理员
+- `super_admin` - 超级管理员
+
+**响应示例：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+#### 黑名单管理
+
+**添加黑名单：**
+```
+POST /api/admin/blacklist/add
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "address": "0x不良地址"
+}
+```
+
+**移除黑名单：**
+```
+POST /api/admin/blacklist/remove
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "address": "0x地址"
+}
+```
+
+#### 合约控制
+
+**暂停合约：**
+```
+POST /api/admin/pause
+Authorization: Bearer <admin_token>
+```
+
+**恢复合约：**
+```
+POST /api/admin/unpause
+Authorization: Bearer <admin_token>
+```
+
+#### 参数调整
+
+**更新质押限额：**
+```
+POST /api/admin/limits/update
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "min_amount": "100000000000000000",
+  "max_amount": "10000000000000000000"
+}
+```
+
+**更新收益费率：**
+```
+POST /api/admin/rate/update
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "rate": "100"
+}
+```
+
+#### 状态查询
+
+**查询合约状态：**
+```
+GET /api/admin/status
+Authorization: Bearer <admin_token>
+```
+
+---
+
+## 📄 智能合约接口
+
+### 主要函数
+
+| 函数名 | 功能 | 调用权限 |
+|--------|------|----------|
+| `stake(uint256 amount)` | 质押代币 | 普通用户 |
+| `unstake(uint256 amount)` | 解质押 | 普通用户 |
+| `claimReward()` | 领取收益 | 普通用户 |
+| `getPendingReward(address)` | 查询待领取收益 | 公开 |
+| `pause()` | 暂停合约 | 管理员 |
+| `unpause()` | 恢复合约 | 管理员 |
+| `addBlacklist(address)` | 添加黑名单 | 管理员 |
+| `removeBlacklist(address)` | 移除黑名单 | 管理员 |
+
+### 事件日志
+
+```solidity
+event Staked(address indexed user, uint256 amount, uint256 time);
+event Unstaked(address indexed user, uint256 amount, uint256 time);
+event RewardClaimed(address indexed user, uint256 reward, uint256 time);
+event BlacklistAdded(address indexed account);
+event BlacklistRemoved(address indexed account);
+event StakeLimitsUpdated(uint256 min, uint256 max);
+```
+
+---
+
+## 🗂️ 数据库模型
+
+### UserStake（用户质押记录）
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| id | uint | 主键 |
+| user_address | string | 用户钱包地址 |
+| stake_amount | string | 质押金额 |
+| reward_debt | string | 已领取收益 |
+| created_at | datetime | 创建时间 |
+| updated_at | datetime | 更新时间 |
+
+### ChainEvent（链上事件记录）
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| id | uint | 主键 |
+| event_type | string | 事件类型 |
+| tx_hash | string | 交易哈希 |
+| block_number | uint | 区块号 |
+| data | json | 事件数据 |
+| processed | bool | 是否已处理 |
+
+---
+
+## ⚙️ 配置说明
+
+### 配置文件结构
 
 ```yaml
 app:
-  name: stake-mining
-  port: "8080"
-  mode: debug
+  name: "Stake-Mining-Backend"
+  port: 8080
+  mode: "prod"
 
 mysql:
-  dsn: "root:your_password@tcp(127.0.0.1:3306)/stake_db?charset=utf8mb4&parseTime=True&loc=Local"
+  dsn: "root:password@tcp(127.0.0.1:3306)/stake_mining?charset=utf8mb4&parseTime=True&loc=Local"
   max_idle: 10
   max_open: 100
 
@@ -103,342 +474,100 @@ redis:
   db: 0
 
 jwt:
-  secret: "your-secret-key-change-in-production"
+  secret: "your-jwt-secret"
   expire: 86400
 
 chain:
-  rpc: "http://localhost:8545"
-  stake_token: "0x..."        # 质押代币地址
-  reward_token: "0x..."       # 奖励代币地址
-  mining_proxy: "0x..."       # 代理合约地址
+  rpc: "https://sepolia.infura.io/v3/your-infura-key"
+  stake_token: "0x质押代币地址"
+  reward_token: "0x收益代币地址"
+  mining_proxy: "0x代理合约地址"
   start_block: 0
 
 indexer:
-  batch_size: 100
+  batch_size: 50
   batch_wait_seconds: 10
 
 rate_limit:
-  max_requests: 100
+  max_requests: 60
   window_seconds: 60
 ```
-
-### 3. 部署智能合约
-
-```bash
-cd StakeContracts
-
-# 编译合约
-forge build
-
-# 运行测试
-forge test -vvv
-
-# 部署到本地测试网（示例）
-forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
-```
-
-### 4. 生成合约绑定代码
-
-```bash
-cd StakeBackend
-
-# 从合约 ABI 生成 Go 绑定
-abigen --abi=../StakeContracts/out/StakeMining.sol/StakeMining.json \
-       --pkg=abi \
-       --type=StakeMining \
-       --out=internal/abi/stakemining.go
-```
-
-### 5. 启动后端服务
-
-```bash
-cd StakeBackend
-
-# 确保 MySQL 和 Redis 已启动
-# 然后运行服务
-go run cmd/main.go
-```
-
-服务启动后，访问 `http://localhost:8080`
-
----
-
-## API 文档
-
-### 公共接口
-
-#### 用户登录
-
-```http
-GET /api/login?address={wallet_address}
-```
-
-**参数：**
-- `address`: 钱包地址（必填）
-
-**响应：**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-### 认证接口
-
-所有认证接口需要在 Header 中携带 JWT Token：
-
-```
-Authorization: Bearer {token}
-```
-
-#### 查询质押信息
-
-```http
-GET /api/stake/info
-```
-
-**响应：**
-```json
-{
-  "data": {
-    "id": 1,
-    "user_address": "0x123...",
-    "stake_amount": "1000000000000000000000",
-    "update_time": 1699999999
-  }
-}
-```
-
-#### 查询待领取收益
-
-```http
-GET /api/stake/reward
-```
-
-**响应：**
-```json
-{
-  "data": {
-    "pending_reward": "50000000000000000000"
-  }
-}
-```
-
----
-
-## 🔧 技术栈
-
-### 后端技术
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Go | 1.24.0 | 主要编程语言 |
-| Gin | v1.10.0 | Web 框架 |
-| GORM | v1.31.1 | ORM 框架 |
-| Redis | v8.11.5 | 缓存层 |
-| Zap | v1.28.0 | 日志框架 |
-| Viper | v1.21.0 | 配置管理 |
-| go-ethereum | v1.17.2 | 区块链交互 |
-| JWT | v4.5.2 | 认证授权 |
-
-### 合约技术
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Solidity | 0.8.20+ | 智能合约语言 |
-| Foundry | 最新版 | 合约开发工具链 |
-| OpenZeppelin | v5.2.0 | 安全合约库 |
-| UUPS Proxy | - | 可升级合约模式 |
-
----
-
-## 核心特性
-
-### 1. 批量事件索引器
-
-- **批量处理**：支持按数量或时间自动批量入库
-- **链重组处理**：自动检测并处理区块链重组
-- **优雅关机**：服务关闭前强制刷新队列，防止数据丢失
-- **并发安全**：使用互斥锁保证队列操作线程安全
-
-```go
-// 批量入库触发条件
-// 1. 达到批量数量阈值
-if len(eventQueue) >= batchSize {
-    flushBatch()
-}
-
-// 2. 超时自动提交
-if time.Since(lastFlushTime) > batchWaitTime {
-    flushBatch()
-}
-```
-
-### 2. Redis 缓存优化
-
-- **防穿透**：空值也缓存，避免恶意查询
-- **防击穿**：使用分布式锁防止并发击穿
-- **自动过期**：设置合理的 TTL
-
-```go
-// 缓存查询流程
-cacheData, err := redis.GetCache(cacheKey)
-if err == nil {
-    if cacheData == "null" {
-        // 空值缓存，防止穿透
-        return emptyResult
-    }
-    return cacheData
-}
-
-// 加锁防击穿
-if !redis.TryLock(cacheKey) {
-    return busyError
-}
-defer redis.Unlock(cacheKey)
-```
-
-### 3. 可升级合约
-
-采用 **TransparentUpgradeableProxy** 模式：
-
-```solidity
-// 部署代理合约
-proxy = new TransparentUpgradeableProxy(
-    address(implementation),
-    address(proxyAdmin),
-    abi.encodeWithSelector(
-        StakeMining.initialize.selector,
-        stakeToken,
-        rewardToken,
-        rewardRate,
-        stakeMinAmount,
-        stakeMaxAmount
-    )
-);
-```
-
-### 4. 安全特性
-
-- 使用 SafeERC20 进行代币转账
-- 重入攻击防护（ReentrancyGuard）
-- 暂停机制（Pausable）
-- 黑名单管理
-- 质押限额控制
 
 ---
 
 ## 🧪 测试
 
-### 合约测试
+### 智能合约测试
 
 ```bash
 cd StakeContracts
-
-# 运行所有测试
-forge test
-
-# 详细输出
-forge test -vvv
-
-# 运行特定测试
-forge test --match-test testStake
+forge test -v
+forge coverage
 ```
-
-**测试覆盖率：**
-- 初始化测试
-- 质押功能测试
-- 赎回功能测试
-- 收益领取测试
-- 黑名单功能测试
-- 暂停功能测试
-- 限额更新测试
-- 边界条件测试
 
 ### 后端测试
 
 ```bash
 cd StakeBackend
-
-# 运行单元测试
 go test ./...
+```
 
-# 带覆盖率
-go test -cover ./...
+### API 测试
+
+**方式一：使用 Swagger UI（推荐）**
+
+1. 启动服务：`go run cmd/main.go`
+2. 访问：`http://localhost:8080/swagger/index.html`
+3. 在线测试所有 API 接口
+
+**方式二：使用测试脚本**
+
+```bash
+cd StakeBackend
+./test_api.sh
+```
+
+**方式三：使用 cURL**
+
+详细示例请查看 [API_GUIDE.md](./StakeBackend/API_GUIDE.md)
+
+---
+
+## 📝 部署
+
+### 测试网部署
+
+```bash
+# 部署到 Sepolia 测试网
+forge script script/Deploy.s.sol:Deploy --rpc-url $SEPOLIA_RPC --private-key $PRIVATE_KEY --broadcast
+```
+
+### 生产环境部署
+
+```bash
+# 使用 Docker Compose
+docker-compose up -d
+
+# 或使用 systemd
+sudo systemctl daemon-reload
+sudo systemctl enable stake-backend
+sudo systemctl start stake-backend
 ```
 
 ---
 
-## 数据库设计
+## 🔒 安全注意事项
 
-### UserStake（用户质押表）
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | BIGINT | 主键 |
-| user_address | VARCHAR(42) | 用户地址 |
-| stake_amount | VARCHAR(78) | 质押数量（Wei） |
-| update_time | BIGINT | 更新时间戳 |
-
-### ChainEvent（链上事件表）
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | BIGINT | 主键 |
-| block_number | BIGINT | 区块号 |
-| block_hash | VARCHAR(66) | 区块哈希 |
-| tx_hash | VARCHAR(66) | 交易哈希 |
-| event_type | VARCHAR(20) | 事件类型 |
-| user | VARCHAR(42) | 用户地址 |
-| amount | VARCHAR(78) | 金额（Wei） |
-| event_time | BIGINT | 事件时间戳 |
-
-### BlockSync（区块同步表）
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| block_number | BIGINT | 区块号 |
-| block_hash | VARCHAR(66) | 区块哈希 |
-| parent_hash | VARCHAR(66) | 父区块哈希 |
+1. **合约安全**：部署前请进行专业安全审计
+2. **私钥管理**：不要将私钥硬编码到代码中
+3. **RPC节点**：生产环境建议使用专用节点服务
+4. **数据备份**：定期备份数据库和关键配置
+5. **HTTPS**：生产环境务必启用 HTTPS
 
 ---
 
-## 安全建议
+## 📄 许可证
 
-### 生产环境部署
-
-1. **配置安全**
-   - 修改 JWT Secret 为强随机字符串
-   - 数据库密码使用环境变量
-   - Redis 设置访问密码
-
-2. **网络隔离**
-   - 使用内网访问数据库和 Redis
-   - 配置防火墙规则
-   - 使用反向代理（Nginx）
-
-3. **监控告警**
-   - 接入日志收集系统（ELK）
-   - 配置服务监控（Prometheus + Grafana）
-   - 设置异常告警
-
----
-
-## 📝 开发指南
-
-### 添加新的合约事件
-
-1. 在 Solidity 合约中添加事件定义
-2. 重新编译合约：`forge build`
-3. 重新生成绑定代码：`abigen --abi=...`
-4. 在 `events.go` 中添加事件 ID 常量
-5. 在 `indexer.go` 中添加事件解析逻辑
-
-### 添加新的 API 接口
-
-1. 在 `controller.go` 中实现 Handler 函数
-2. 在 `main.go` 中注册路由
-3. 添加必要的中间件（JWT、限流）
-4. 编写单元测试
+MIT License
 
 ---
