@@ -58,11 +58,51 @@ func GetTracker() *TransactionTracker {
 func (t *TransactionTracker) Start() {
 	logger.Logger.Info("交易状态追踪器启动")
 	go t.pollLoop()
+	go t.cleanupLoop()
 }
 
 func (t *TransactionTracker) Stop() {
 	logger.Logger.Info("交易状态追踪器关闭")
 	t.cancel()
+}
+
+// cleanupLoop 定期清理已完成的交易记录（防止内存泄漏）
+func (t *TransactionTracker) cleanupLoop() {
+	cleanupTicker := time.NewTicker(1 * time.Hour)
+	defer cleanupTicker.Stop()
+
+	for {
+		select {
+		case <-t.ctx.Done():
+			return
+		case <-cleanupTicker.C:
+			t.cleanupOldRecords()
+		}
+	}
+}
+
+// cleanupOldRecords 清理已完成超过24小时的交易记录
+func (t *TransactionTracker) cleanupOldRecords() {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	cutoff := time.Now().Add(-24 * time.Hour)
+	cleanedCount := 0
+
+	for hash, record := range t.txMap {
+		// 只清理非pending状态且超过24小时的记录
+		if record.Status != TxStatusPending && record.UpdatedAt.Before(cutoff) {
+			delete(t.txMap, hash)
+			cleanedCount++
+		}
+	}
+
+	if cleanedCount > 0 {
+		logger.Logger.Info("清理过期交易记录",
+			zap.Int("cleaned_count", cleanedCount),
+			zap.Int("remaining_count", len(t.txMap)),
+		)
+	}
 }
 
 func (t *TransactionTracker) TrackTx(txHash string) {

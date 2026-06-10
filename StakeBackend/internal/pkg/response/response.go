@@ -3,6 +3,8 @@ package response
 import (
 	"net/http"
 
+	apperr "StakeBackend/internal/pkg/errors"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -63,5 +65,39 @@ func TooManyRequests(c *gin.Context) {
 	c.JSON(http.StatusTooManyRequests, Response{
 		Code: CodeTooManyReq,
 		Msg:  "请求过于频繁，请稍后再试",
+	})
+}
+
+// HandleError 统一错误处理
+func HandleError(c *gin.Context, err error) {
+	if appErr, ok := err.(*apperr.AppError); ok {
+		// 应用错误，使用对应的HTTP状态码
+		var httpStatus int
+		switch appErr.Code {
+		case apperr.ErrInvalidRequest:
+			httpStatus = http.StatusBadRequest
+		case apperr.ErrUnauthorized:
+			httpStatus = http.StatusUnauthorized
+		case apperr.ErrForbidden:
+			httpStatus = http.StatusForbidden
+		case apperr.ErrNotFound:
+			httpStatus = http.StatusNotFound
+		case apperr.ErrTooManyRequests:
+			httpStatus = http.StatusTooManyRequests
+		default:
+			httpStatus = http.StatusInternalServerError
+		}
+
+		c.JSON(httpStatus, Response{
+			Code: int(appErr.Code),
+			Msg:  appErr.Message,
+		})
+		return
+	}
+
+	// 未知错误，当作内部服务器错误处理
+	c.JSON(http.StatusInternalServerError, Response{
+		Code: CodeServerError,
+		Msg:  "服务器内部错误",
 	})
 }

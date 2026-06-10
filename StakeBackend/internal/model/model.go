@@ -45,3 +45,12 @@ type AdminOperation struct {
 	MaxLimit    string `gorm:"type:varchar(255)" json:"max_limit"`
 	EventTime   uint64 `json:"event_time"`
 }
+
+// Admin 管理员模型
+type Admin struct {
+	db.BaseModel
+	AdminID     string `gorm:"size:64;uniqueIndex" json:"admin_id"` 
+	Role        string `gorm:"size:20" json:"role"`                 
+	IsActive    bool   `gorm:"default:true" json:"is_active"`       
+	LastLoginAt uint64 `json:"last_login_at"`                       
+}

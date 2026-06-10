@@ -54,7 +54,7 @@ func JWTMiddleware() gin.HandlerFunc {
 // ParseToken 解析Token
 func ParseToken(token string) (*Claims, error) {
 	tokenClaims, err := jwt.ParseWithClaims(token, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		// 验证签名算法类型，防止算法混淆攻击
+		
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}

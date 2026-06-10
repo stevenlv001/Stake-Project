@@ -49,6 +49,7 @@ func main() {
 		&model.ChainEvent{},
 		&model.BlockSync{},
 		&model.AdminOperation{},
+		&model.Admin{},
 	)
 	if err != nil {
 		logger.Logger.Fatal("数据库迁移失败", zap.Error(err))
@@ -78,6 +79,7 @@ func main() {
 	{
 		authGroup.GET("/stake/info", api.GetStakeInfo)
 		authGroup.GET("/stake/reward", api.GetPendingReward)
+		authGroup.GET("/stake/history", api.GetStakeHistory)
 		authGroup.POST("/stake/do", api.DoStake)
 		authGroup.POST("/stake/unstake", api.DoUnstake)
 		authGroup.POST("/stake/claim", api.DoClaimReward)
@@ -110,12 +112,12 @@ func main() {
 
 	go func() {
 		<-quitChan
-		logger.Logger.Info("开始优雅关闭服务...")
+		logger.Logger.Info("关闭服务...")
 
 		txtracker.GetTracker().Stop()
 		indexer.FlushOnShutdown()
 
-		logger.Logger.Info("所有批量数据已入库，服务安全关闭")
+		logger.Logger.Info("批量数据已入库，服务关闭")
 		os.Exit(0)
 	}()
 

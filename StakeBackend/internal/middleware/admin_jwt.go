@@ -14,7 +14,7 @@ import (
 // AdminClaims 管理员JWT Claims
 type AdminClaims struct {
 	AdminID   string `json:"admin_id"`
-	Role      string `json:"role"` // admin, super_admin
+	Role      string `json:"role"` 
 	jwt.RegisteredClaims
 }
 
@@ -59,7 +59,7 @@ func AdminJWTMiddleware() gin.HandlerFunc {
 // ParseAdminToken 解析管理员Token
 func ParseAdminToken(token string) (*AdminClaims, error) {
 	tokenClaims, err := jwt.ParseWithClaims(token, &AdminClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// 验证签名算法类型，防止算法混淆攻击
+		// 验证签名算法类型
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -85,7 +85,7 @@ func RequireRole(requiredRole string) gin.HandlerFunc {
 			return
 		}
 
-		// 超级管理员拥有所有权限
+		// 管理员拥有所有权限
 		if roleStr, ok := role.(string); ok {
 			if roleStr == "super_admin" || roleStr == requiredRole {
 				c.Next()

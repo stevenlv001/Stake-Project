@@ -1,8 +1,10 @@
 package config
 
 import (
-	"github.com/spf13/viper"
 	"log"
+	"os"
+
+	"github.com/spf13/viper"
 )
 
 // 全局配置对象
@@ -82,6 +84,27 @@ func InitConfig() {
 	// 解析配置到全局对象
 	if err := viper.Unmarshal(&GlobalConfig); err != nil {
 		log.Fatalf("解析配置文件失败: %v", err)
+	}
+
+	// 从环境变量覆盖敏感配置（优先级高于配置文件）
+	if jwtSecret := os.Getenv("JWT_SECRET"); jwtSecret != "" {
+		GlobalConfig.JWT.Secret = jwtSecret
+		log.Println("使用环境变量 JWT_SECRET")
+	}
+
+	if mysqlDSN := os.Getenv("MYSQL_DSN"); mysqlDSN != "" {
+		GlobalConfig.MySQL.DSN = mysqlDSN
+		log.Println("使用环境变量 MYSQL_DSN")
+	}
+
+	if redisAddr := os.Getenv("REDIS_ADDR"); redisAddr != "" {
+		GlobalConfig.Redis.Addr = redisAddr
+		log.Println("使用环境变量 REDIS_ADDR")
+	}
+
+	if rpcURL := os.Getenv("RPC_URL"); rpcURL != "" {
+		GlobalConfig.Chain.RPC = rpcURL
+		log.Println("使用环境变量 RPC_URL")
 	}
 
 	log.Println("配置文件初始化成功")

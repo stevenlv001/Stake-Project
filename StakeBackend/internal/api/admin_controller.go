@@ -2,10 +2,17 @@ package api
 
 import (
 	"math/big"
+	"time"
+
+	apperr "StakeBackend/internal/pkg/errors"
 
 	"StakeBackend/internal/contract"
+	"StakeBackend/internal/db"
+	"StakeBackend/internal/middleware"
+	"StakeBackend/internal/model"
 	"StakeBackend/internal/pkg/logger"
 	"StakeBackend/internal/pkg/response"
+	"StakeBackend/internal/redis"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
@@ -58,18 +65,11 @@ func AddBlacklist(c *gin.Context) {
 		return
 	}
 
-	gasLimit, err := contract.EstimateGas(contract.GetMiningContractAddress(), txData)
-	if err != nil {
-		logger.Logger.Warn("Gas估算失败，使用默认值", zap.Error(err))
-		gasLimit = 300000
-	}
-
-	response.Success(c, gin.H{
-		"to":        contract.GetMiningContractAddress(),
-		"data":      common.Bytes2Hex(txData),
-		"value":     "0",
-		"gas_limit": gasLimit,
-	})
+	response.Success(c, buildTxResponse(txData))
+	
+	// 清除相关缓存
+	contract.InvalidateContractStatusCache()
+	redis.DelCache("blacklist:" + req.Address)
 }
 
 // RemoveBlacklist godoc
@@ -102,18 +102,11 @@ func RemoveBlacklist(c *gin.Context) {
 		return
 	}
 
-	gasLimit, err := contract.EstimateGas(contract.GetMiningContractAddress(), txData)
-	if err != nil {
-		logger.Logger.Warn("Gas估算失败，使用默认值", zap.Error(err))
-		gasLimit = 300000
-	}
-
-	response.Success(c, gin.H{
-		"to":        contract.GetMiningContractAddress(),
-		"data":      common.Bytes2Hex(txData),
-		"value":     "0",
-		"gas_limit": gasLimit,
-	})
+	response.Success(c, buildTxResponse(txData))
+	
+	// 清除相关缓存
+	contract.InvalidateContractStatusCache()
+	redis.DelCache("blacklist:" + req.Address)
 }
 
 // PauseContract godoc
@@ -131,18 +124,10 @@ func PauseContract(c *gin.Context) {
 		return
 	}
 
-	gasLimit, err := contract.EstimateGas(contract.GetMiningContractAddress(), txData)
-	if err != nil {
-		logger.Logger.Warn("Gas估算失败，使用默认值", zap.Error(err))
-		gasLimit = 300000
-	}
-
-	response.Success(c, gin.H{
-		"to":        contract.GetMiningContractAddress(),
-		"data":      common.Bytes2Hex(txData),
-		"value":     "0",
-		"gas_limit": gasLimit,
-	})
+	response.Success(c, buildTxResponse(txData))
+	
+	// 清除合约状态缓存
+	contract.InvalidateContractStatusCache()
 }
 
 // UnpauseContract godoc
@@ -160,18 +145,10 @@ func UnpauseContract(c *gin.Context) {
 		return
 	}
 
-	gasLimit, err := contract.EstimateGas(contract.GetMiningContractAddress(), txData)
-	if err != nil {
-		logger.Logger.Warn("Gas估算失败，使用默认值", zap.Error(err))
-		gasLimit = 300000
-	}
-
-	response.Success(c, gin.H{
-		"to":        contract.GetMiningContractAddress(),
-		"data":      common.Bytes2Hex(txData),
-		"value":     "0",
-		"gas_limit": gasLimit,
-	})
+	response.Success(c, buildTxResponse(txData))
+	
+	// 清除合约状态缓存
+	contract.InvalidateContractStatusCache()
 }
 
 // UpdateStakeLimits godoc
@@ -216,18 +193,10 @@ func UpdateStakeLimits(c *gin.Context) {
 		return
 	}
 
-	gasLimit, err := contract.EstimateGas(contract.GetMiningContractAddress(), txData)
-	if err != nil {
-		logger.Logger.Warn("Gas估算失败，使用默认值", zap.Error(err))
-		gasLimit = 300000
-	}
-
-	response.Success(c, gin.H{
-		"to":        contract.GetMiningContractAddress(),
-		"data":      common.Bytes2Hex(txData),
-		"value":     "0",
-		"gas_limit": gasLimit,
-	})
+	response.Success(c, buildTxResponse(txData))
+	
+	// 清除合约状态缓存
+	contract.InvalidateContractStatusCache()
 }
 
 // UpdateRewardRate godoc
@@ -260,18 +229,10 @@ func UpdateRewardRate(c *gin.Context) {
 		return
 	}
 
-	gasLimit, err := contract.EstimateGas(contract.GetMiningContractAddress(), txData)
-	if err != nil {
-		logger.Logger.Warn("Gas估算失败，使用默认值", zap.Error(err))
-		gasLimit = 300000
-	}
-
-	response.Success(c, gin.H{
-		"to":        contract.GetMiningContractAddress(),
-		"data":      common.Bytes2Hex(txData),
-		"value":     "0",
-		"gas_limit": gasLimit,
-	})
+	response.Success(c, buildTxResponse(txData))
+	
+	// 清除合约状态缓存
+	contract.InvalidateContractStatusCache()
 }
 
 // GetContractStatus godoc
@@ -282,9 +243,12 @@ func UpdateRewardRate(c *gin.Context) {
 // @Success 200 {object} response.Response
 // @Router /api/admin/status [get]
 func GetContractStatus(c *gin.Context) {
-	// TODO: 实现合约状态查询
-	// 需要添加对应的合约读取方法
-	response.Success(c, gin.H{
-		"message": "功能开发中",
-	})
+	status, err := contract.GetContractStatusWithCache()
+	if err != nil {
+		logger.Logger.Error("查询合约状态失败", zap.Error(err))
+		response.ServerError(c, "查询失败")
+		return
+	}
+
+	response.Success(c, status)
 }
