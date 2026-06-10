@@ -63,3 +63,16 @@ go.work
 
 # Debug
 *.pdb
+
+# Documentation files (not for GitHub)
+智能合约.md
+端到端流程.md
+索引器实现.md
+笔记.md
+
+# Test scripts (not for GitHub)
+StakeBackend/test_api.sh
+StakeBackend/test_improvements.sh
+
+# Improvement docs (not for GitHub)
+StakeBackend/IMPROVEMENTS.md
